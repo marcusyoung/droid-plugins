@@ -1,0 +1,13 @@
+{
+  "Stop": [
+    {
+      "hooks": [
+        {
+          "type": "command",
+          "command": "node \"${DROID_PLUGIN_ROOT}/hooks/handoff-prompt.mjs\"",
+          "timeout": 10
+        }
+      ]
+    }
+  ]
+}

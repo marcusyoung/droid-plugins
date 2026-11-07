@@ -1,0 +1,12 @@
+{
+  "name": "handoff",
+  "description": "Session handoffs with a context-threshold prompt",
+  "version": "1.0.0",
+  "author": {
+    "name": "Marcus Young"
+  },
+  "homepage": "https://github.com/marcusyoung/droid-plugins",
+  "repository": "https://github.com/marcusyoung/droid-plugins",
+  "license": "MIT",
+  "keywords": ["handoff", "context", "compaction"]
+}
