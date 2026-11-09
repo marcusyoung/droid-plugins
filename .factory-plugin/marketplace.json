@@ -7,7 +7,7 @@
   "plugins": [
     {
       "name": "handoff",
-      "description": "Session handoffs: /handoff-save, /handoff-resume, the session-continuity skill, and a Stop hook that asks whether to hand off at 200k context.",
+      "description": "Session handoffs: /handoff-save, /handoff-resume, the session-continuity skill, and a Stop hook that asks whether to hand off at a defined context.",
       "source": "./handoff",
       "category": "productivity",
       "tags": ["handoff", "context", "hooks"]
