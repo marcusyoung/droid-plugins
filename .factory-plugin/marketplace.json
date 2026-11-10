@@ -11,6 +11,13 @@
       "source": "./handoff",
       "category": "productivity",
       "tags": ["handoff", "context", "hooks"]
+    },
+    {
+      "name": "connapse-memory",
+      "description": "Connapse agent memory: per-repository spaces, a SessionStart hook that injects the space, rules and current facts, first-prompt fact recall, an optional Stop reminder, and the connapse-memory skill.",
+      "source": "./connapse-memory",
+      "category": "productivity",
+      "tags": ["connapse", "memory", "hooks"]
     }
   ]
 }

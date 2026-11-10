@@ -1,0 +1,35 @@
+{
+  "SessionStart": [
+    {
+      "hooks": [
+        {
+          "type": "command",
+          "command": "node \"${DROID_PLUGIN_ROOT}/hooks/session-start.mjs\"",
+          "timeout": 20
+        }
+      ]
+    }
+  ],
+  "UserPromptSubmit": [
+    {
+      "hooks": [
+        {
+          "type": "command",
+          "command": "node \"${DROID_PLUGIN_ROOT}/hooks/prompt-recall.mjs\"",
+          "timeout": 20
+        }
+      ]
+    }
+  ],
+  "Stop": [
+    {
+      "hooks": [
+        {
+          "type": "command",
+          "command": "node \"${DROID_PLUGIN_ROOT}/hooks/stop-nudge.mjs\"",
+          "timeout": 10
+        }
+      ]
+    }
+  ]
+}
