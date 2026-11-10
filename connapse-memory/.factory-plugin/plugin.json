@@ -1,0 +1,12 @@
+{
+  "name": "connapse-memory",
+  "description": "Connapse agent memory for Droid: per-repository memory spaces, a SessionStart hook that injects the space, rules and current facts, first-prompt fact recall, an optional throttled Stop hook that reminds the agent to save durable facts, and a skill for less common memory procedures.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Marcus Young"
+  },
+  "homepage": "https://github.com/marcusyoung/droid-plugins",
+  "repository": "https://github.com/marcusyoung/droid-plugins",
+  "license": "MIT",
+  "keywords": ["connapse", "memory", "hooks"]
+}
