@@ -89,5 +89,6 @@ lines.push(
 );
 for (const { s, f } of found) lines.push(`${formatFact(f)} (${s})`);
 lines.push("</connapse_memory_recall>");
+// Not process.exit(): it would drop output still queued for a pipe on Linux and macOS.
 process.stdout.write(lines.join("\n") + "\n");
-process.exit(0);
+process.exitCode = 0;

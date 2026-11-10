@@ -18,7 +18,7 @@ function tmp() { return fs.mkdtempSync(path.join(os.tmpdir(), "cm-test-")); }
 function gitInit(dir, extra = []) { execFileSync("git", ["init", "-q", ...extra, dir]); return dir; }
 const fact = (id, value = `value ${id}`) => ({ id, subject: "s", attribute: "a", value });
 
-function runHook(script, { cwd, config = {}, fixture = { spaces: {} }, input = {}, state = {} }) {
+function prepare(script, { cwd, config = {}, fixture = { spaces: {} }, input = {}, state = {} }) {
   const home = tmp();
   const stateDir = path.join(home, ".factory", "state", "connapse-memory");
   fs.mkdirSync(stateDir, { recursive: true });
@@ -27,15 +27,34 @@ function runHook(script, { cwd, config = {}, fixture = { spaces: {} }, input = {
   fs.writeFileSync(files.cfg, JSON.stringify(config));
   fs.writeFileSync(files.fix, JSON.stringify(fixture));
   fs.writeFileSync(files.calls, "");
-  const started = Date.now();
-  const r = spawnSync(process.execPath, ["--import", mock, path.join(hooks, script)], {
-    input: JSON.stringify({ cwd, session_id: "t1", ...input }), encoding: "utf8",
+  return {
+    args: ["--import", mock, path.join(hooks, script)],
+    stdin: JSON.stringify({ cwd, session_id: "t1", ...input }),
     env: { ...process.env, USERPROFILE: home, HOME: home, CONNAPSE_MEMORY_CONFIG: files.cfg, CM_FIXTURE: files.fix, CM_CALLS: files.calls },
-  });
+    calls: () => fs.readFileSync(files.calls, "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l)),
+  };
+}
+
+function runHook(script, opts) {
+  const p = prepare(script, opts);
+  const started = Date.now();
+  const r = spawnSync(process.execPath, p.args, { input: p.stdin, encoding: "utf8", env: p.env });
   assert.equal(r.status, 0, r.stderr);
   const elapsedMs = Date.now() - started;
-  const calls = fs.readFileSync(files.calls, "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l));
+  const calls = p.calls();
   return { out: r.stdout, calls, elapsedMs, posts: calls.filter((c) => c[0] === "api") };
+}
+
+// Runs the hook behind a shell pipe whose reader starts a second late, so output
+// larger than the pipe buffer is still queued when the hook finishes.
+function runHookSlowReader(script, opts) {
+  const p = prepare(script, opts);
+  const r = spawnSync("sh", ["-c", '"$CM_NODE" --import "$CM_MOCK" "$CM_HOOK" | (sleep 1; cat)'], {
+    input: p.stdin, encoding: "utf8",
+    env: { ...p.env, CM_NODE: process.execPath, CM_MOCK: p.args[1], CM_HOOK: p.args[2] },
+  });
+  assert.equal(r.status, 0, r.stderr);
+  return r.stdout;
 }
 
 test("SessionStart creates a missing space when injectFacts is 0", () => {
@@ -114,6 +133,29 @@ test("prompt recall prints facts found before its time budget runs out", () => {
   assert.equal(stuck.calls.length, 1);
   assert.equal(stuck.out, "");
   assert.ok(stuck.elapsedMs < 4000, `${stuck.elapsedMs}`);
+});
+
+const bulky = Array.from({ length: 150 }, (_, i) => ({ ...fact(`b${i}`, "<b>&amp;</b>".repeat(40)), subject: "<s>".repeat(20) }));
+
+test("SessionStart caps injectFacts at the server's 100-fact maximum", () => {
+  const repo = gitInit(path.join(tmp(), "zeta"));
+  const r = runHook("session-start.mjs", { cwd: repo, config: { injectFacts: 150 }, fixture: { spaces: { "zeta-memory": bulky } } });
+  assert.equal(r.out.match(/^- /gm).length, 100);
+  assert.deepEqual(r.calls.map((c) => c[c.indexOf("--limit") + 1]), ["100"]);
+});
+
+// Pipe writes are synchronous on Windows, so the failure only occurs on Linux and macOS.
+test("hooks deliver all output to a slow reader", { skip: process.platform === "win32" && "pipe writes are synchronous on Windows" }, () => {
+  const repo = gitInit(path.join(tmp(), "eta"));
+  const start = runHookSlowReader("session-start.mjs", { cwd: repo, config: { injectFacts: 100 }, fixture: { spaces: { "eta-memory": bulky } } });
+  assert.equal(start.match(/^- /gm)?.length, 100);
+  assert.match(start, /<\/connapse_memory>\n$/);
+  const recall = runHookSlowReader("prompt-recall.mjs", {
+    cwd: repo, config: { promptRecall: { limit: 100 } }, fixture: { spaces: { "eta-memory": bulky, "my-memory": [] } },
+    input: { prompt: "explain the deployment pipeline" },
+  });
+  assert.equal(recall.match(/^- /gm)?.length, 100);
+  assert.match(recall, /<\/connapse_memory_recall>\n$/);
 });
 
 test("generated space names fit the 128-character limit", () => {
