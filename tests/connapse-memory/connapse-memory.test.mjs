@@ -94,6 +94,41 @@ test("prompt recall finds unseen facts beyond already-injected matches", () => {
   assert.doesNotMatch(r.out, /\[f[1-8]\]/);
 });
 
+test("prompt recall extracts Unicode keywords on the first prompt", () => {
+  const repo = gitInit(path.join(tmp(), "unicode"));
+  for (const [prompt, query] of [
+    ["部署设置", "部署设置"],
+    ["ПРОВЕРКА настроек", "проверка настроек"],
+    ["réglages déploiement", "réglages déploiement"],
+    ["إعدادات النشر", "إعدادات النشر"],
+    ["Check deploy.config release-v2 pipeline_2026", "deploy.config release-v2 pipeline_2026"],
+  ]) {
+    const r = runHook("prompt-recall.mjs", {
+      cwd: repo, input: { prompt },
+      fixture: { spaces: { "unicode-memory": [fact("unicode")], "my-memory": [] } },
+    });
+    assert.match(r.out, /\[unicode\] \(unicode-memory\)/, prompt);
+    assert.equal(r.calls.length, 2, prompt);
+    for (const call of r.calls) assert.equal(call[call.indexOf("--query") + 1], query, prompt);
+  }
+});
+
+test("Unicode recall preserves keyword filtering, deduplication and limits", () => {
+  const repo = gitInit(path.join(tmp(), "unicode"));
+  const fixture = { spaces: { "unicode-memory": [fact("unicode")], "my-memory": [] } };
+  const filtered = runHook("prompt-recall.mjs", {
+    cwd: repo, fixture, input: { prompt: "the 1234 ١٢٣٤ １２３４ abc" },
+  });
+  assert.equal(filtered.calls.length, 0);
+  assert.equal(filtered.out, "");
+  const limited = runHook("prompt-recall.mjs", {
+    cwd: repo, fixture, input: { prompt: "部署设置 部署设置 РЕЛИЗ релиз déploiement" },
+    config: { promptRecall: { maxKeywords: 2 } },
+  });
+  assert.match(limited.out, /\[unicode\]/);
+  for (const call of limited.calls) assert.equal(call[call.indexOf("--query") + 1], "部署设置 релиз");
+});
+
 test("prompt recall follows nextCursor when the server caps page size", () => {
   const r = recall({ maxPage: 3, spaces: { "delta-memory": nine, "my-memory": [] } });
   assert.match(r.out, /\[f9\] \(delta-memory\)/);

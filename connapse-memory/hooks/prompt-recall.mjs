@@ -21,9 +21,9 @@ const STOPWORDS = new Set((
 
 export function keywords(prompt, max) {
   const seen = new Set();
-  for (const m of String(prompt || "").toLowerCase().matchAll(/[a-z0-9][a-z0-9._-]*[a-z0-9]/g)) {
+  for (const m of String(prompt || "").toLowerCase().matchAll(/[\p{L}\p{N}][\p{L}\p{N}._-]*[\p{L}\p{N}]/gu)) {
     const w = m[0];
-    if (w.length < 4 || STOPWORDS.has(w) || /^\d+$/.test(w)) continue;
+    if (w.length < 4 || STOPWORDS.has(w) || /^\p{N}+$/u.test(w)) continue;
     seen.add(w);
     if (seen.size >= max) break;
   }
