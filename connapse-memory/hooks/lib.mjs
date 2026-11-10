@@ -42,24 +42,45 @@ function git(cwd, args) {
   }).trim();
 }
 
+function checkoutName(dir) {
+  const base = path.basename(dir);
+  return base.toLowerCase() === ".git" ? path.basename(path.dirname(dir)) : base.replace(/\.git$/i, "");
+}
+
 // Linked worktrees resolve to the main checkout's name, so every worktree of
 // a repository maps to the same space. `repo` is false outside a git checkout.
+// The common git directory is not used for the name because `--separate-git-dir`
+// can put it anywhere under any name. For a linked worktree of such a repository,
+// git itself does not record the main checkout, so the git directory's name is used.
 export function projectInfo(cwd) {
+  let dirs;
   try {
-    const common = git(cwd, ["rev-parse", "--path-format=absolute", "--git-common-dir"]);
-    const base = path.basename(common);
-    const name = base.toLowerCase() === ".git" ? path.basename(path.dirname(common)) : base.replace(/\.git$/i, "");
-    return { name, repo: true };
+    dirs = git(cwd, ["rev-parse", "--path-format=absolute", "--git-dir", "--git-common-dir"]).split(/\r?\n/);
   } catch {
     return { name: path.basename(cwd), repo: false };
   }
+  const [gitDir, common] = dirs;
+  let top;
+  try {
+    top = path.resolve(gitDir) !== path.resolve(common)
+      ? git(cwd, ["worktree", "list", "--porcelain"]).split(/\r?\n/)[0].replace(/^worktree /, "")
+      : git(cwd, ["rev-parse", "--show-toplevel"]);
+  } catch {
+    top = common; // bare repository, or cwd inside the git directory
+  }
+  return { name: checkoutName(top) || checkoutName(common), repo: true };
 }
+
+// Connapse rejects container names longer than this (PathUtilities.IsValidContainerName).
+const SPACE_NAME_MAX = 128;
 
 // One space per repository; outside a repository, the shared default space,
 // so stray working directories never create spaces.
 export function resolveSpace(config, project) {
   if (!project.repo) return { space: config.defaultSpace, perRepo: false };
-  const slug = project.name.toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
+  const room = SPACE_NAME_MAX - String(config.spaceSuffix).length;
+  const slug = project.name.toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/-+/g, "-")
+    .replace(/^-/, "").slice(0, Math.max(room, 0)).replace(/-$/, "");
   return slug ? { space: slug + config.spaceSuffix, perRepo: true } : { space: config.defaultSpace, perRepo: false };
 }
 
@@ -80,21 +101,25 @@ function cli(config, args) {
   }
 }
 
-function parseFacts(out) {
+// `memory list --json` prints a page: { facts: [{ fact, sources }], nextCursor }.
+function parsePage(out) {
   const parsed = JSON.parse(out);
   const items = Array.isArray(parsed) ? parsed : parsed.facts || [];
-  // `memory list --json` wraps each fact as { fact, sources }.
-  return items.map((i) => (i && i.fact) || i).filter(Boolean);
+  return {
+    facts: items.map((i) => (i && i.fact) || i).filter(Boolean),
+    nextCursor: (!Array.isArray(parsed) && parsed.nextCursor) || null,
+  };
 }
 
-// Returns { ok, facts, error }. Never throws: a missing or signed-out CLI must
-// not break a hook.
-export function listFacts(config, space, { limit, query } = {}) {
+// Returns { ok, facts, nextCursor, error }. Never throws: a missing or
+// signed-out CLI must not break a hook.
+export function listFacts(config, space, { limit, query, cursor } = {}) {
   const args = ["memory", "list", "--space", space, "--limit", String(limit ?? config.injectFacts), "--json"];
   if (query) args.push("--query", query, "--sort", "relevance");
+  if (cursor) args.push("--cursor", cursor);
   const r = cli(config, args);
-  if (!r.ok) return { ok: false, facts: [], error: r.error };
-  try { return { ok: true, facts: parseFacts(r.out) }; } catch { return { ok: false, facts: [], error: "unreadable CLI output" }; }
+  if (!r.ok) return { ok: false, facts: [], nextCursor: null, error: r.error };
+  try { return { ok: true, ...parsePage(r.out) }; } catch { return { ok: false, facts: [], nextCursor: null, error: "unreadable CLI output" }; }
 }
 
 export function createSpace(config, space, project) {
@@ -118,18 +143,28 @@ export function writeJson(file, value) {
   } catch { /* state is best effort */ }
 }
 
+// Fact text is written by agents and is injected inside <connapse_memory> tags,
+// so markup characters are encoded to stop a fact closing or forging a block.
+export function escapeMarkup(s) {
+  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function collapse(s) {
+  return String(s ?? "").replace(/\s+/g, " ").trim();
+}
+
 export function sanitise(s, max = 300) {
-  return String(s ?? "").replace(/\s+/g, " ").trim().slice(0, max);
+  return escapeMarkup(collapse(s).slice(0, max));
 }
 
 const VALUE_MAX = 300;
 
 export function formatFact(f) {
-  const since = f.validFrom ? ` (since ${String(f.validFrom).slice(0, 10)})` : "";
+  const since = f.validFrom ? ` (since ${sanitise(f.validFrom, 10)})` : "";
   const subject = sanitise(f.subject, 80);
-  const full = sanitise(f.value, Infinity);
+  const full = collapse(f.value);
   const value = full.length > VALUE_MAX
-    ? `${full.slice(0, VALUE_MAX)}… (truncated; memory_recall subject "${subject}" for the full value)`
-    : full;
+    ? `${escapeMarkup(full.slice(0, VALUE_MAX))}… (truncated; memory_recall subject "${subject}" for the full value)`
+    : escapeMarkup(full);
   return `- ${subject} | ${sanitise(f.attribute, 80)} = ${value}${since} [${sanitise(f.id, 40)}]`;
 }

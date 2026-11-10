@@ -53,7 +53,7 @@ Only with the user's request or approval for that move.
 1. Recall the fact and read its full value. The hook shows values truncated at 300
    characters.
 2. Save it with `memory_remember` in the target space, keeping `subject`, `attribute`,
-   `validFrom` and `sources`. Add "Moved from <space>" to `reason`.
+   `validFrom`, `validTo` (if set) and `sources`. Add "Moved from <space>" to `reason`.
 3. Check the save succeeded and landed in the target space.
 4. Delete the original with `memory_forget` (see below). Tell the user that only the
    current version moves: the correction history is deleted with the original.
@@ -83,7 +83,7 @@ The hooks call the `connapse` CLI; the MCP tools do not need it.
 
 | Symptom | Cause and fix |
 |---|---|
-| `Unrecognized command or argument 'memory'` | The CLI release predates the `memory` commands. Build the CLI from its `main` branch (`dotnet publish src/Connapse.Cli/Connapse.Cli.csproj -c Release -r win-x64 -o <dir>`) and put it on PATH. `connapse update --check` shows whether a release has caught up. |
+| `Unrecognized command or argument 'memory'` | The CLI release predates the `memory` commands. Build the CLI from its `main` branch (`dotnet publish src/Connapse.Cli/Connapse.Cli.csproj -c Release --use-current-runtime -o <dir>`) and put it on PATH. `connapse update --check` shows whether a release has caught up. |
 | `memory recall` returns `404 Not Found` | The server lacks the cross-space recall route. Use `connapse memory list --space <space> --json`, which the hooks use. |
 | Exit code 2 | The CLI is signed out. Run `connapse auth login --server <url>`. |
 | Browser login shows "Unknown or unregistered client." | The server could not fetch its own `/oauth/clients/cli.json`, often because a reverse proxy restricts access by IP. Recall the server's facts for the fix recorded for it. |

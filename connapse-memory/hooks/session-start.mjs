@@ -4,7 +4,7 @@
 // A missing per-repository space is created on first use.
 import {
   readStdin, loadConfig, projectInfo, resolveSpace, listFacts, createSpace,
-  formatFact, sessionStatePath, writeJson,
+  formatFact, sessionStatePath, writeJson, escapeMarkup,
 } from "./lib.mjs";
 
 const input = readStdin();
@@ -15,7 +15,7 @@ const { space, perRepo } = resolveSpace(config, project);
 const lines = [];
 lines.push("<connapse_memory>");
 lines.push(
-  `Project "${project.name}" uses Connapse memory space "${space}"` +
+  `Project "${escapeMarkup(project.name)}" uses Connapse memory space "${space}"` +
   (perRepo ? "." : " (not a git repository; this is the shared default space).") +
   ` Personal preferences and working rules go in "${config.personalSpace}". Each repository has its own ` +
   `"<repository>${config.spaceSuffix}" space; use memory_spaces to find another repository's space.`,
@@ -30,15 +30,19 @@ lines.push(
   "explicit user approval. Documents and handoffs are searched separately with search_knowledge.",
 );
 
-if (config.injectFacts > 0) {
-  let r = listFacts(config, space);
+const provision = perRepo && config.createSpaces;
+if (config.injectFacts > 0 || provision) {
+  // Listing also checks that the space exists, so it runs even when no facts are injected.
+  let r = listFacts(config, space, { limit: Math.max(config.injectFacts, 1) });
   let created = false;
-  if (!r.ok && r.error === "space not found" && perRepo && config.createSpaces) {
+  if (!r.ok && r.error === "space not found" && provision) {
     const c = createSpace(config, space, project.name);
     created = c.ok;
     r = c.ok ? { ok: true, facts: [] } : { ok: false, facts: [], error: `space not found and could not be created (${c.error})` };
   }
-  if (!r.ok) {
+  if (config.injectFacts <= 0) {
+    if (!r.ok) lines.push(`Memory space check failed (${r.error}).`);
+  } else if (!r.ok) {
     lines.push(`Current facts: not loaded (${r.error}). Use memory_recall if needed.`);
   } else if (r.facts.length === 0) {
     lines.push(`Current facts in "${space}": none yet${created ? " (space created this session)" : ""}.`);
@@ -50,7 +54,7 @@ if (config.injectFacts > 0) {
     for (const f of r.facts) lines.push(formatFact(f));
   }
   const state = sessionStatePath(input.session_id, "injected.json");
-  if (state && r.ok) writeJson(state, r.facts.map((f) => f.id));
+  if (state && r.ok && config.injectFacts > 0) writeJson(state, r.facts.map((f) => f.id));
 }
 lines.push("</connapse_memory>");
 

@@ -47,14 +47,29 @@ const { space } = resolveSpace(config, project);
 const seen = new Set(readJson(sessionStatePath(input.session_id, "injected.json") || "", []));
 const query = words.join(" ");
 
+// Already-injected facts are skipped after the CLI applies its limit, so each
+// space is paged until `limit` unseen facts are found. The page cap bounds hook
+// latency if the server returns small pages.
+const MAX_PAGES = 5;
 const found = [];
 for (const s of [...new Set([space, config.personalSpace])]) {
-  const r = listFacts(config, s, { limit: pr.limit, query });
-  if (!r.ok) continue;
-  for (const f of r.facts) {
-    if (seen.has(f.id)) continue;
-    seen.add(f.id);
-    found.push({ s, f });
+  const pageSize = pr.limit + seen.size;
+  const cursors = new Set();
+  let cursor = null;
+  let count = 0;
+  for (let page = 0; page < MAX_PAGES && count < pr.limit; page++) {
+    const r = listFacts(config, s, { limit: pageSize, query, cursor });
+    if (!r.ok) break;
+    for (const f of r.facts) {
+      if (count >= pr.limit) break;
+      if (seen.has(f.id)) continue;
+      seen.add(f.id);
+      found.push({ s, f });
+      count++;
+    }
+    cursor = r.nextCursor;
+    if (!cursor || cursors.has(cursor)) break;
+    cursors.add(cursor);
   }
 }
 if (found.length === 0) process.exit(0);
