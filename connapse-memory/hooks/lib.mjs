@@ -88,6 +88,8 @@ function cli(config, args, timeoutMs = config.cliTimeoutMs) {
   try {
     const out = execFileSync("connapse", args, {
       encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: timeoutMs, windowsHide: true,
+      // A full page of non-ASCII facts, escaped as \uXXXX, can exceed the 1 MiB default.
+      maxBuffer: 16 * 1024 * 1024,
     });
     return { ok: true, out };
   } catch (e) {
