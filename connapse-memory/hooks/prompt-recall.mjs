@@ -5,8 +5,10 @@
 import fs from "node:fs";
 import {
   readStdin, loadConfig, projectInfo, resolveSpace, listFacts, formatFact,
-  sessionStatePath, readJson, writeJson,
+  sessionStatePath, readJson, writeJson, LIST_LIMIT_MAX,
 } from "./lib.mjs";
+
+const started = Date.now();
 
 const STOPWORDS = new Set((
   "about above after again against also because been before being below between both could does doing down " +
@@ -51,14 +53,20 @@ const query = words.join(" ");
 // space is paged until `limit` unseen facts are found. The page cap bounds hook
 // latency if the server returns small pages.
 const MAX_PAGES = 5;
+// Droid kills the hook at its hooks.json timeout (20 s) and drops its output,
+// so all CLI calls share one budget and the facts found so far are printed in time.
+const deadline = started + pr.budgetMs;
+const MIN_CALL_MS = 500;
 const found = [];
-for (const s of [...new Set([space, config.personalSpace])]) {
-  const pageSize = pr.limit + seen.size;
+spaces: for (const s of [...new Set([space, config.personalSpace])]) {
+  const pageSize = Math.min(LIST_LIMIT_MAX, pr.limit + seen.size);
   const cursors = new Set();
   let cursor = null;
   let count = 0;
   for (let page = 0; page < MAX_PAGES && count < pr.limit; page++) {
-    const r = listFacts(config, s, { limit: pageSize, query, cursor });
+    const left = deadline - Date.now();
+    if (left < MIN_CALL_MS) break spaces;
+    const r = listFacts(config, s, { limit: pageSize, query, cursor, timeoutMs: Math.min(config.cliTimeoutMs, left) });
     if (!r.ok) break;
     for (const f of r.facts) {
       if (count >= pr.limit) break;

@@ -27,13 +27,15 @@ function runHook(script, { cwd, config = {}, fixture = { spaces: {} }, input = {
   fs.writeFileSync(files.cfg, JSON.stringify(config));
   fs.writeFileSync(files.fix, JSON.stringify(fixture));
   fs.writeFileSync(files.calls, "");
+  const started = Date.now();
   const r = spawnSync(process.execPath, ["--import", mock, path.join(hooks, script)], {
     input: JSON.stringify({ cwd, session_id: "t1", ...input }), encoding: "utf8",
     env: { ...process.env, USERPROFILE: home, HOME: home, CONNAPSE_MEMORY_CONFIG: files.cfg, CM_FIXTURE: files.fix, CM_CALLS: files.calls },
   });
   assert.equal(r.status, 0, r.stderr);
+  const elapsedMs = Date.now() - started;
   const calls = fs.readFileSync(files.calls, "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l));
-  return { out: r.stdout, calls, posts: calls.filter((c) => c[0] === "api") };
+  return { out: r.stdout, calls, elapsedMs, posts: calls.filter((c) => c[0] === "api") };
 }
 
 test("SessionStart creates a missing space when injectFacts is 0", () => {
@@ -88,6 +90,30 @@ test("prompt recall stops at the limit, on exhaustion and on CLI failure", () =>
   assert.equal(exhausted.calls.filter((c) => c.includes("delta-memory")).length, 3);
   const failed = recall({ spaces: {} });
   assert.equal(failed.out, "");
+});
+
+test("prompt recall keeps page sizes within the server's 100-fact maximum", () => {
+  const hundred = Array.from({ length: 100 }, (_, i) => fact(`i${i}`));
+  for (const n of [100, 92]) {
+    const r = recall({ spaces: { "delta-memory": [...hundred, fact("new1")], "my-memory": [fact("p1")] } },
+      { "t1.injected.json": hundred.slice(0, n).map((f) => f.id) }, { injectFacts: 100 });
+    assert.match(r.out, /\[p1\] \(my-memory\)/, `${n} injected`);
+    if (n === 100) assert.match(r.out, /\[new1\] \(delta-memory\)/);
+    for (const c of r.calls) assert.ok(Number(c[c.indexOf("--limit") + 1]) <= 100, c.join(" "));
+  }
+});
+
+test("prompt recall prints facts found before its time budget runs out", () => {
+  const many = Array.from({ length: 30 }, (_, i) => fact(`m${i}`));
+  const spaces = { "delta-memory": many, "my-memory": many.map((f) => fact(`p${f.id}`)) };
+  const slow = recall({ delayMs: 600, maxPage: 1, spaces }, {}, { promptRecall: { budgetMs: 1500 } });
+  assert.equal(slow.calls.length, 2);
+  assert.equal(slow.out.match(/\(delta-memory\)/g).length, 2);
+  assert.ok(slow.elapsedMs < 4000, `${slow.elapsedMs}`);
+  const stuck = recall({ delayMs: 10000, spaces }, {}, { promptRecall: { budgetMs: 1500 } });
+  assert.equal(stuck.calls.length, 1);
+  assert.equal(stuck.out, "");
+  assert.ok(stuck.elapsedMs < 4000, `${stuck.elapsedMs}`);
 });
 
 test("generated space names fit the 128-character limit", () => {

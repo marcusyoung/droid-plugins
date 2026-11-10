@@ -17,7 +17,7 @@ const DEFAULTS = {
   personalSpace: "my-memory",
   injectFacts: 20,
   cliTimeoutMs: 8000,
-  promptRecall: { enabled: true, limit: 8, maxKeywords: 12 },
+  promptRecall: { enabled: true, limit: 8, maxKeywords: 12, budgetMs: 15000 },
   stopNudge: { enabled: false, minToolCalls: 3, minIntervalMinutes: 15 },
 };
 
@@ -84,10 +84,10 @@ export function resolveSpace(config, project) {
   return slug ? { space: slug + config.spaceSuffix, perRepo: true } : { space: config.defaultSpace, perRepo: false };
 }
 
-function cli(config, args) {
+function cli(config, args, timeoutMs = config.cliTimeoutMs) {
   try {
     const out = execFileSync("connapse", args, {
-      encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: config.cliTimeoutMs, windowsHide: true,
+      encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: timeoutMs, windowsHide: true,
     });
     return { ok: true, out };
   } catch (e) {
@@ -111,13 +111,16 @@ function parsePage(out) {
   };
 }
 
+// Connapse rejects list limits outside 1 to this (MemoryPaging.MaxLimit).
+export const LIST_LIMIT_MAX = 100;
+
 // Returns { ok, facts, nextCursor, error }. Never throws: a missing or
 // signed-out CLI must not break a hook.
-export function listFacts(config, space, { limit, query, cursor } = {}) {
+export function listFacts(config, space, { limit, query, cursor, timeoutMs } = {}) {
   const args = ["memory", "list", "--space", space, "--limit", String(limit ?? config.injectFacts), "--json"];
   if (query) args.push("--query", query, "--sort", "relevance");
   if (cursor) args.push("--cursor", cursor);
-  const r = cli(config, args);
+  const r = cli(config, args, timeoutMs);
   if (!r.ok) return { ok: false, facts: [], nextCursor: null, error: r.error };
   try { return { ok: true, ...parsePage(r.out) }; } catch { return { ok: false, facts: [], nextCursor: null, error: "unreadable CLI output" }; }
 }

@@ -31,7 +31,7 @@ Connapse agent memory for Droid. Requires the `project-knowledge` MCP server (Co
 
 - Spaces: each git repository uses its own `<repository>-memory` team space (worktrees use the main checkout's name). Outside a git repository, the hooks use `defaultSpace`. With `createSpaces`, SessionStart creates a missing repository space.
 - SessionStart hook: injects the space, the save/recall rules and up to `injectFacts` current facts (newest first). Values over 300 characters are truncated with a hint to recall the full fact. If the CLI is missing or signed out, it injects the rules only.
-- UserPromptSubmit hook: on the first prompt of a session, searches the repository space and `personalSpace` for facts sharing words with the prompt and injects up to `promptRecall.limit` per space, skipping facts already injected. Silent when nothing matches.
+- UserPromptSubmit hook: on the first prompt of a session, searches the repository space and `personalSpace` for facts sharing words with the prompt and injects up to `promptRecall.limit` per space, skipping facts already injected. CLI calls stop after `promptRecall.budgetMs`, keeping the hook within its 20-second timeout. Silent when nothing matches.
 - `connapse-memory` skill: moving, correcting and deleting facts (including the approval flow), searching another repository's space, naming conventions and CLI troubleshooting.
 - Stop hook (off by default): after a turn with at least `minToolCalls` tool calls, at most once every `minIntervalMinutes` per session, asks the agent to save or correct durable facts or end the turn silently. Each nudge costs one extra model turn. It never fires on a turn the hook itself continued.
 
@@ -44,7 +44,7 @@ Configuration lives in `~/.factory/connapse-memory.json` (override with `CONNAPS
   "defaultSpace": "team-memory",
   "personalSpace": "my-memory",
   "injectFacts": 20,
-  "promptRecall": { "enabled": true, "limit": 8, "maxKeywords": 12 },
+  "promptRecall": { "enabled": true, "limit": 8, "maxKeywords": 12, "budgetMs": 15000 },
   "stopNudge": { "enabled": false, "minToolCalls": 3, "minIntervalMinutes": 15 }
 }
 ```
