@@ -1,10 +1,12 @@
 ---
 name: connapse-memory
+version: 1.0.1
 description: >
   Procedures for Connapse agent memory beyond the everyday rules the connapse-memory
   SessionStart hook injects. Use when moving a fact to another space, deleting a fact,
-  correcting a fact on the day it was saved, searching another repository's space, choosing
-  a subject or attribute, or troubleshooting the `connapse` CLI memory commands.
+  correcting a fact (including same-day changes and source-retention errors), searching
+  another repository's space, choosing a subject or attribute, or troubleshooting the
+  `connapse` CLI memory commands.
 ---
 
 # Connapse memory procedures
@@ -40,11 +42,40 @@ covers every space; pass the space explicitly.
 
 ## Correcting a fact
 
+Before calling `memory_correct`, recall the current fact in its space and match its `id`
+to `factId`. Read the full value and complete `sources`; do not build a correction from
+the hook's truncated summary or an earlier correction payload.
+
 - Use `kind: "changed"` when the world changed and `kind: "wrong"` when the old value was
   never true.
 - `validFrom` for a `changed` correction must be later than the old fact's start. For a fact
   saved earlier the same day, use the current time as an ISO timestamp, not a bare date.
 - Never set `validFrom` in the future: the old value stays current until then.
+
+### Keep every existing source
+
+A team fact's correction must retain every source cited by the old fact. Sources also
+control who can read the fact; removing one could expose the new value to readers who
+cannot access that source. Keep it even when shortening the value or removing a claim
+that originally used it.
+
+1. Copy every existing source reference into the correction's `sources` array. Recall
+   returns source objects; pass document IDs as strings and graph references as
+   `node:<id>`, as required by the tool.
+2. Add any new supporting sources and remove duplicates. The result must contain all
+   old references, not just the sources supporting the revised wording. For example,
+   old `[A, B]` plus new evidence `[C]` means send `[A, B, C]`, not `[C]`.
+3. Check that no old reference is missing before submitting. After a successful
+   correction, recall the fact to verify the new value and retained sources.
+
+If the server reports "a correction of a team fact must keep every source the old fact
+cites", stop and report the rejection. Re-read the current fact before preparing a
+corrected payload; do not repeat the incomplete payload or omit `sources` to bypass the
+check. If the complete source list cannot be retrieved, ask the user rather than guess.
+
+Never follow the error's suggestion to forget and re-remember automatically. Sharing
+more widely is a separate access change: explain that forgetting deletes all versions
+and obtain explicit approval for that fact and the replacement before proceeding.
 
 ## Moving a fact to another space
 
