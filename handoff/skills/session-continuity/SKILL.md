@@ -115,7 +115,7 @@ Call project-knowledge tools directly, e.g. `get_document` with `{ containerId, 
    - If that fact has changed, update it with `memory_correct`. Otherwise save a new fact with `memory_remember`, setting `validFrom` and citing the verified handoff document ID in `sources`.
    - Save one fact per call. Never store the handoff or the conversation as a whole.
    Report which facts were saved or corrected, or that none qualified.
-8. Suggest one short session title based on this handoff's topic/Summary, usually 3–5 words in sentence case. Report it as `Suggested session title: ...` for the user to apply manually. Do not rename the session or claim it was renamed.
+8. Suggest one short session title that encapsulates the work done in the **current session**, usually 3–5 words in sentence case. Report it as `Suggested session title: ...` for the user to apply manually. Do not rename the session or claim it was renamed.
 9. Report the verified document ID/path, any memory facts saved, and suggested title concisely. Do not start its proposed next steps. Creating or amending a handoff does not authorize deletion, cleanup, board edits, or implementation.
 
 ## Workflow: Resuming a Handoff
