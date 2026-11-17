@@ -27,7 +27,7 @@ Requires Node.js on `PATH`.
 
 ### connapse-memory
 
-Connapse agent memory for Droid. Requires the `project-knowledge` MCP server (Connapse) for the `memory_*` tools, and optionally the [`connapse` CLI](https://github.com/Destrayon/connapse-cli), signed in with `connapse auth login`, so the hooks can read facts and create spaces. The `memory` commands are on the CLI's `main` branch and not yet in a release (v0.5.1); build from source until they are.
+Connapse agent memory for Droid. Requires the `project-knowledge` MCP server (Connapse) for the `memory_*` tools, and optionally the [`connapse` CLI](https://github.com/Destrayon/connapse-cli), signed in with `connapse auth login`, so the hooks can read facts and create spaces. The hooks need CLI v0.5.2 or later (the first release with the `memory` commands) and a Connapse server that the CLI supports (v0.4.1 or later).
 
 - Spaces: each git repository uses its own `<repository>-memory` team space (worktrees use the main checkout's name). Outside a git repository, the hooks use `defaultSpace`. With `createSpaces`, SessionStart creates a missing repository space.
 - SessionStart hook: injects the space, the save/recall rules and up to `injectFacts` current facts (newest first, at most 100). Values over 300 characters are truncated with a hint to recall the full fact. If the CLI is missing or signed out, it injects the rules only.

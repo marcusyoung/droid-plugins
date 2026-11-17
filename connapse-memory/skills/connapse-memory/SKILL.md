@@ -1,6 +1,6 @@
 ---
 name: connapse-memory
-version: 1.0.1
+version: 1.0.2
 description: >
   Procedures for Connapse agent memory beyond the everyday rules the connapse-memory
   SessionStart hook injects. Use when moving a fact to another space, deleting a fact,
@@ -114,8 +114,8 @@ The hooks call the `connapse` CLI; the MCP tools do not need it.
 
 | Symptom | Cause and fix |
 |---|---|
-| `Unrecognized command or argument 'memory'` | The CLI release predates the `memory` commands. Build the CLI from its `main` branch (`dotnet publish src/Connapse.Cli/Connapse.Cli.csproj -c Release --use-current-runtime -o <dir>`) and put it on PATH. `connapse update --check` shows whether a release has caught up. |
-| `memory recall` returns `404 Not Found` | The server lacks the cross-space recall route. Use `connapse memory list --space <space> --json`, which the hooks use. |
+| `Unrecognized command or argument 'memory'` | The CLI is older than v0.5.2, the first release with the `memory` commands. Update it (`connapse update`, or rerun the install script) and check with `connapse --version`. |
+| `memory recall` returns `404 Not Found` | The server is older than v0.4.1, which added the cross-space recall route; CLI 0.5.2 names the missing feature. Upgrade the server, or use `connapse memory list --space <space> --json`, which the hooks use. |
 | Exit code 2 | The CLI is signed out. Run `connapse auth login --server <url>`. |
 | Browser login shows "Unknown or unregistered client." | The server could not fetch its own `/oauth/clients/cli.json`, often because a reverse proxy restricts access by IP. Recall the server's facts for the fix recorded for it. |
 | Hook output says "CLI not found on PATH" | The CLI was installed after Droid started. Restart Droid. |
